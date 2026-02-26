@@ -17,9 +17,10 @@
 pip install -r requirements.txt
 ```
 ### Настройте переменные окружения:
-Создайте файл .env в корне проекта и добавьте:
+
+Создайте файл .env в корне проекта и добавьте туда свой ключ.
+Ключ SuperJob API можно получить при регистрации приложения: https://api.superjob.ru/register
 ```txt
-Ключ SuperJob API (получите на https://api.superjob.ru/register)
 SUPERJOB_SECRET_KEY=v3.r.ваш_ключ_сюда
 ```
 ## 4. Использование скриптов

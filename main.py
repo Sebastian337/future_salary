@@ -4,14 +4,20 @@ import requests
 from dotenv import load_dotenv
 from terminaltables import AsciiTable
 
-
-load_dotenv()
-SUPERJOB_API_KEY = os.getenv("SUPERJOB_SECRET_KEY")
-
 LANGUAGES = ["Python", "Java", "JavaScript", "C++", "C#", "PHP", "Ruby", "Go", "1С"]
 
 SALARY_MULTIPLIER_ONLY_FROM = 1.2
 SALARY_MULTIPLIER_ONLY_TO = 0.8
+
+
+HH_MOSCOW_AREA = 1
+HH_PERIOD_DAYS = 30
+HH_VACANCIES_PER_PAGE = 100
+
+
+SJ_MOSCOW_ID = 4
+SJ_IT_CATALOGUE = 48
+SJ_VACANCIES_PER_PAGE = 100
 
 
 def predict_salary(salary_from, salary_to):
@@ -37,8 +43,7 @@ def predict_rub_salary_sj(vacancy):
     return predict_salary(vacancy.get("payment_from"), vacancy.get("payment_to"))
 
 
-def fetch_all_vacancies_list(make_request, extract_items, get_total):
-
+def fetch_all_vacancies(make_request, extract_items, get_total):
     all_items = []
     page = 0
     total_found = 0
@@ -60,16 +65,25 @@ def fetch_all_vacancies_list(make_request, extract_items, get_total):
     return all_items, total_found
 
 
-def collect_statistics(language, make_request, extract_salary):
+def extract_hh_items(response):
+    return response.get("items", [])
 
-    def extract_items(response):
-        return response.get("items", []) if "items" in response else response.get("objects", [])
 
-    def get_total(response):
-        return response.get("found") or response.get("total", 0)
+def get_hh_total(response):
+    return response.get("found", 0)
 
-    all_vacancies, total_found = fetch_all_vacancies_list(
-        lambda page: make_request(page),
+
+def extract_sj_items(response):
+    return response.get("objects", [])
+
+
+def get_sj_total(response):
+    return response.get("total", 0)
+
+
+def collect_statistics(make_request, extract_items, get_total, extract_salary):
+    all_vacancies, total_found = fetch_all_vacancies(
+        make_request,
         extract_items,
         get_total
     )
@@ -77,7 +91,7 @@ def collect_statistics(language, make_request, extract_salary):
     salaries = []
     for vacancy in all_vacancies:
         salary = extract_salary(vacancy)
-        if salary is not None:
+        if salary:
             salaries.append(salary)
 
     if not salaries:
@@ -92,59 +106,47 @@ def collect_statistics(language, make_request, extract_salary):
     }
 
 
-def hh_request(language, page):
+def fetch_hh_vacancies(language, page):
     url = "https://api.hh.ru/vacancies"
     params = {
         "text": f"ПРОГРАММИСТ {language}",
-        "area": 1,
-        "period": 30,
+        "area": HH_MOSCOW_AREA,
+        "period": HH_PERIOD_DAYS,
         "search_field": "name",
-        "per_page": 100,
+        "per_page": HH_VACANCIES_PER_PAGE,
         "page": page
     }
-    return requests.get(url, params=params).json()
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
 
 
-def sj_request(language, api_key, page):
+def fetch_sj_vacancies(language, api_key, page):
     url = "https://api.superjob.ru/2.0/vacancies/"
     headers = {"X-Api-App-Id": api_key}
     params = {
-        "town_id": 4,
-        "catalogues": 48,
+        "town_id": SJ_MOSCOW_ID,
+        "catalogues": SJ_IT_CATALOGUE,
         "keyword": f"программист {language} разработчик {language}",
-        "count": 100,
+        "count": SJ_VACANCIES_PER_PAGE,
         "page": page
     }
-    return requests.get(url, headers=headers, params=params).json()
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()
 
 
-def get_hh_statistics(language):
-    return collect_statistics(
-        language,
-        lambda page: hh_request(language, page),
-        predict_rub_salary_hh
-    )
-
-
-def get_sj_statistics(language, api_key):
-    return collect_statistics(
-        language,
-        lambda page: sj_request(language, api_key, page),
-        predict_rub_salary_sj
-    )
-
-
-def print_statistics_table(stats, site_name):
+def print_statistics_table(statistics, site_name):
     table_data = [
         ["Язык программирования", "Найдено вакансий", "Обработано вакансий", "Средняя зарплата"]
     ]
-    for lang, data in stats.items():
-        if data["vacancies_found"] > 0:
+    for language, language_stat in statistics.items():
+        if language_stat["vacancies_found"]:  # Избавились от > 0
             table_data.append([
-                lang,
-                data["vacancies_found"],
-                data["vacancies_processed"],
-                data["average_salary"]
+                language,
+                language_stat["vacancies_found"],
+                language_stat["vacancies_processed"],
+                language_stat["average_salary"]
             ])
     table = AsciiTable(table_data)
     table.title = f"{site_name} Moscow"
@@ -153,23 +155,36 @@ def print_statistics_table(stats, site_name):
 
 
 def main():
+    load_dotenv()
+    superjob_api_key = os.getenv("SUPERJOB_SECRET_KEY")
+
     print("Сбор статистики с HeadHunter...\n")
-    hh_stats = {}
-    for lang in LANGUAGES:
-        print(f"HeadHunter: {lang}")
-        hh_stats[lang] = get_hh_statistics(lang)
+    hh_statistics = {}
+    for language in LANGUAGES:
+        print(f"HeadHunter: {language}")
+        hh_statistics[language] = collect_statistics(
+            lambda page, lang=language: fetch_hh_vacancies(lang, page),
+            extract_hh_items,
+            get_hh_total,
+            predict_rub_salary_hh
+        )
         time.sleep(0.5)
 
     print("\nСбор статистики с SuperJob...\n")
-    sj_stats = {}
-    for lang in LANGUAGES:
-        print(f"SuperJob: {lang}")
-        sj_stats[lang] = get_sj_statistics(lang, SUPERJOB_API_KEY)
+    sj_statistics = {}
+    for language in LANGUAGES:
+        print(f"SuperJob: {language}")
+        sj_statistics[language] = collect_statistics(
+            lambda page, lang=language: fetch_sj_vacancies(lang, superjob_api_key, page),
+            extract_sj_items,
+            get_sj_total,
+            predict_rub_salary_sj
+        )
         time.sleep(0.5)
 
     print("\n" + "=" * 60)
-    print_statistics_table(hh_stats, "HeadHunter")
-    print_statistics_table(sj_stats, "SuperJob")
+    print_statistics_table(hh_statistics, "HeadHunter")
+    print_statistics_table(sj_statistics, "SuperJob")
 
 
 if __name__ == "__main__":
