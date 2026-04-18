@@ -81,13 +81,7 @@ def get_sj_total(response):
     return response.get("total", 0)
 
 
-def collect_statistics(make_request, extract_items, get_total, extract_salary):
-    all_vacancies, total_found = fetch_all_vacancies(
-        make_request,
-        extract_items,
-        get_total
-    )
-    
+def collect_statistics(all_vacancies, total_found, extract_salary):
     salaries = []
     for vacancy in all_vacancies:
         salary = extract_salary(vacancy)
