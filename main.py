@@ -135,7 +135,6 @@ def print_statistics_table(statistics, site_name):
         ["Язык программирования", "Найдено вакансий", "Обработано вакансий", "Средняя зарплата"]
     ]
     for language, language_stat in statistics.items():
-        # Блок ниже теперь выполняется всегда, без условий
         table_data.append([
             language,
             language_stat["vacancies_found"],
