@@ -44,25 +44,25 @@ def predict_rub_salary_sj(vacancy):
 
 
 def fetch_all_vacancies(make_request, extract_items, get_total):
-    all_items = []
+    all_vacancies = []
     page = 0
     total_found = 0
     
     while True:
         response = make_request(page)
-        items = extract_items(response)
+        page_vacancies = extract_items(response)
         
         if page == 0:
             total_found = get_total(response)
             
-        all_items.extend(items)
+        all_vacancies.extend(page_vacancies)
         
-        if not items:
+        if not page_vacancies:
             break
         page += 1
         time.sleep(0.3)
     
-    return all_items, total_found
+    return all_vacancies, total_found
 
 
 def extract_hh_items(response):
