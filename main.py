@@ -135,13 +135,12 @@ def print_statistics_table(statistics, site_name):
         ["Язык программирования", "Найдено вакансий", "Обработано вакансий", "Средняя зарплата"]
     ]
     for language, language_stat in statistics.items():
-        if language_stat["vacancies_found"]:  # Избавились от > 0
-            table_data.append([
-                language,
-                language_stat["vacancies_found"],
-                language_stat["vacancies_processed"],
-                language_stat["average_salary"]
-            ])
+        table_data.append([
+            language,
+            language_stat["vacancies_found"],
+            language_stat["vacancies_processed"],
+            language_stat["average_salary"]
+        ])
     table = AsciiTable(table_data)
     table.title = f"{site_name} Moscow"
     print(table.table)
@@ -156,10 +155,14 @@ def main():
     hh_statistics = {}
     for language in LANGUAGES:
         print(f"HeadHunter: {language}")
-        hh_statistics[language] = collect_statistics(
+        vacancies, total_found = fetch_all_vacancies(
             lambda page, lang=language: fetch_hh_vacancies(lang, page),
             extract_hh_items,
-            get_hh_total,
+            get_hh_total
+        )
+        hh_statistics[language] = collect_statistics(
+            vacancies,
+            total_found,
             predict_rub_salary_hh
         )
         time.sleep(0.5)
@@ -168,10 +171,14 @@ def main():
     sj_statistics = {}
     for language in LANGUAGES:
         print(f"SuperJob: {language}")
-        sj_statistics[language] = collect_statistics(
+        vacancies, total_found = fetch_all_vacancies(
             lambda page, lang=language: fetch_sj_vacancies(lang, superjob_api_key, page),
             extract_sj_items,
-            get_sj_total,
+            get_sj_total
+        )
+        sj_statistics[language] = collect_statistics(
+            vacancies,
+            total_found,
             predict_rub_salary_sj
         )
         time.sleep(0.5)
